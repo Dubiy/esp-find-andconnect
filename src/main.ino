@@ -5,7 +5,11 @@
 
 WiFiClient client;
 WiFiServer server(23);
-char cmd[100];
+struct State {
+  int motor_l;
+  int motor_r;
+  int servo;
+} state;
 
 void setup() {
     //TODO rewrite loading params from configuration
@@ -51,80 +55,85 @@ void setup() {
 void loop() {
     GetClient();
 
-    Serial.println("Waiting for cmd...");
+    // Serial.println("Waiting for cmd...");
 
-    // String Message = client.readStringUntil('\r');
+    String cmd = client.readStringUntil('\r');
 
-    getstr(cmd, sizeof(cmd));
-    Serial.print("Received cmd: ");
-    Serial.println(Message);
+    //waiting for cmd "funcName:100:200:300:"
 
-    // process cmd and send result to echo server
+    if (cmd.length()) {
+        client.flush();
+        // Serial.print(cmd.length());
+        // Serial.print(" Received cmd: ");
+        // Serial.println(cmd);
 
-    if (strcmp("on", cmd) == 0) {
-        digitalWrite(LED_PIN, LOW);
-        client.println("== ok ==");
-    } else if (strcmp("off", cmd) == 0) {
-        digitalWrite(LED_PIN, HIGH);
-        client.println("== ok ==");
-    } else {
-        client.println("== error ==");
+        state = ParseCmd(cmd);
+
+        Serial.print("STATE: motor_l: ");
+        Serial.print(state.motor_l);
+        Serial.print(" motor_r: ");
+        Serial.print(state.motor_r);
+        Serial.print(" servo: ");
+        Serial.println(state.servo);
+
     }
-    Serial.println("do again!");
+
+    // switch (1) {
+    //     case (cmd == "on"): {
+    //         digitalWrite(LED_PIN, LOW);
+    //         client.println("== ok ==");
+    //     } break;
+    //     case (cmd == "off"): {
+    //         digitalWrite(LED_PIN, HIGH);
+    //         client.println("== ok ==");
+    //     } break;
+    //     default: {
+    //         client.println("== error ==");
+    //     } break;
+    // }
+
+    // Serial.println("do again!");
 }
 
-char* getstr(char* str, int maxlen) {
-    unsigned long previousMillis = 0, currentMillis = 0;
-    long INTERVAL_ping = 5000;
-    int i = 0;
+State ParseCmd(String cmd) {
+    State data;
+    String func = "";
+    int args[10];
+    int argsCount = 0;
 
-    strcpy(str, "");
 
-    while (true) {
-        while (client.available() == 0) {
-            client.flush();
-            //https://github.com/esp8266/Arduino/blob/master/doc/reference.md#timing-and-delays
-            // No infinite null loops allowed! Delay needs to be used which
-            // yields control to ESP routines as necessary.
 
-            delay(30); // or yield();
 
-            currentMillis = millis();
-            if (currentMillis - previousMillis > INTERVAL_ping || previousMillis > currentMillis) {
-                //previousMillis > currentMillis: It just show the elapsed time from the start of the board. This number will overflow (go back to zero), after approximately 50 days (source: arduino.cc/en/Reference/millis)
-                previousMillis = currentMillis;
+    String separator = ":";
+    int partFrom = cmd.indexOf(separator);
+    int partTo = 0;
 
-                Serial.print('.');
-                if (!client.print(".")) {
-                    Serial.println(" [client lost]");
-                    client.stop();
-                    return "";
-                }
-            }
-
-            if (!client.connected()) {
-                return "";
-            }
-        }
-
-        str[i] = client.read();
-        Serial.print(str[i]);
-        if (str[i] == '\n' || str[i] == '\r') {
-            str[i] = '\0';
-            break; // while
-        } else {
-            if (i >= maxlen) {
-                Serial.print("buffer ");
-                Serial.print(maxlen);
-                Serial.print(" overflow: ");
-                Serial.println(str);
-            } else {
-                i++;
-            }
-        }
+    if (partFrom >= 0) {
+        func = cmd.substring(0, partFrom++);
     }
 
-    return str;
+    while ((partTo = cmd.indexOf(separator, partFrom)) && partTo >= 0) {
+        String val = cmd.substring(partFrom, partTo);
+        args[argsCount] = val.toInt();
+        argsCount++;
+        partFrom = partTo + 1;
+    }
+
+    Serial.print("ParseCmd. Func: ");
+    Serial.println(func);
+    Serial.print("argsCount: ");
+    Serial.println(argsCount);
+    for (int i = 0; i < argsCount; i++) {
+        Serial.print(args[i]);
+        Serial.print(" ");
+    }
+    Serial.println("parseEnd");
+
+    data.motor_l = args[0];
+    data.motor_r = args[1];
+    data.servo = args[2];
+
+    return data;
 }
 
 void GetClient() {
@@ -141,9 +150,9 @@ void GetClient() {
         client.stop();
         return;
     }
-    // if (!client.print(".")) {
-    //     Serial.println(" [client lost]");
-    //     client.stop();
-    //     return;
-    // }
+    if (!client.print(".")) {
+        Serial.println(" [client lost]");
+        client.stop();
+        return;
+    }
 }
