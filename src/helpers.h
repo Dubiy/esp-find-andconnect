@@ -16,11 +16,12 @@ void showConnectionInfo() {
 }
 
 void setupAp() {
+  WiFi.disconnect();
   WiFi.mode(WIFI_AP);
   Serial.print("Setting soft-AP configuration ... ");
   Serial.println(WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0)) ? "Ready" : "Failed!");
 
-  String apSsid = "uworld-node-" + WiFi.softAPmacAddress();
+  String apSsid = "esp-tcp-" + WiFi.softAPmacAddress();
   Serial.print("Setting soft-AP ... ");
   Serial.println(WiFi.softAP(apSsid.c_str()) ? "Ready" : "Failed!");
 
